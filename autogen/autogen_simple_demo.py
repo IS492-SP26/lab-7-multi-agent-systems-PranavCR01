@@ -41,7 +41,7 @@ class GroupChatInterviewPlatform:
         print("All AutoGen agents created and GroupChat initialized.")
 
     def _create_agents(self):
-        """Create UserProxyAgent and 4 specialist AssistantAgents"""
+        """Create UserProxyAgent and 5 specialist AssistantAgents"""
 
         # UserProxyAgent acts as the product manager who kicks off the discussion
         self.user_proxy = autogen.UserProxyAgent(
@@ -104,10 +104,29 @@ Your responsibilities:
 - Highlight competitive differentiation
 
 Reference specific opportunities from the AnalysisAgent and market gaps from the ResearchAgent.
-After presenting your blueprint, invite the ReviewerAgent to review and provide recommendations.
+After presenting your blueprint, invite the CostAnalyst to estimate development costs for the proposed features.
 Keep your response focused and under 400 words.""",
             llm_config=self.llm_config,
             description="A product designer who creates feature blueprints and user journeys based on identified market opportunities.",
+        )
+
+        # Cost Analyst Agent - estimates development costs after blueprint
+        self.cost_agent = autogen.AssistantAgent(
+            name="CostAnalyst",
+            system_message="""You are a financial analyst specializing in SaaS product development costs.
+Your role in this group discussion is to ESTIMATE COSTS based on the BlueprintAgent's design.
+
+Your responsibilities:
+- When the BlueprintAgent presents product features, estimate development costs for each
+- Provide a cost-benefit ranking of the proposed features
+- Suggest a realistic budget range for MVP, V1, and V2 phases
+- Estimate timeline alongside costs (e.g., MVP: 3 months, $150k)
+
+Reference specific features from the BlueprintAgent when making your estimates.
+After your analysis, invite the ReviewerAgent to provide final strategic recommendations.
+Keep your response focused and under 400 words.""",
+            llm_config=self.llm_config,
+            description="A financial analyst who estimates development costs and ROI for proposed product features.",
         )
 
         # Reviewer Agent - reviews and concludes with strategic recommendations
@@ -117,12 +136,13 @@ Keep your response focused and under 400 words.""",
 Your role in this group discussion is to REVIEW and provide final recommendations.
 
 Your responsibilities:
-- When the BlueprintAgent presents the product design, evaluate its feasibility and market fit
+- When the CostAnalyst presents cost estimates, incorporate them into your review
+- Evaluate the blueprint's feasibility and market fit considering the cost analysis
 - Provide 3-4 strategic recommendations for launch success
 - Suggest a phased implementation approach (MVP → V1 → V2)
 - Identify key risks and mitigation strategies
 
-Reference specific features from the BlueprintAgent and opportunities from earlier discussion.
+Reference specific features from the BlueprintAgent, cost estimates from the CostAnalyst, and opportunities from earlier discussion.
 After your review, conclude the discussion by ending your message with the word TERMINATE.""",
             llm_config=self.llm_config,
             description="A product executive who reviews blueprints, assesses feasibility, and provides strategic recommendations for launch.",
@@ -136,10 +156,11 @@ After your review, conclude the discussion by ending your message with the word 
                 self.research_agent,
                 self.analysis_agent,
                 self.blueprint_agent,
+                self.cost_agent,
                 self.reviewer_agent,
             ],
             messages=[],
-            max_round=8,
+            max_round=10,
             speaker_selection_method="auto",
             allow_repeat_speaker=False,
             send_introductions=True,
@@ -174,7 +195,8 @@ Let's collaborate on this:
 1. ResearchAgent: Start by analyzing the competitive landscape
 2. AnalysisAgent: Then identify key market opportunities
 3. BlueprintAgent: Design the product features and user journey
-4. ReviewerAgent: Finally, review and provide strategic recommendations
+4. CostAnalyst: Estimate development costs for the proposed features
+5. ReviewerAgent: Finally, review and provide strategic recommendations
 
 ResearchAgent, please begin with your market analysis."""
 
@@ -183,7 +205,7 @@ ResearchAgent, please begin with your market analysis."""
             message=initial_message,
             summary_method="reflection_with_llm",
             summary_args={
-                "summary_prompt": "Summarize the complete product plan developed through this multi-agent discussion. Include: key market findings, identified opportunities, proposed features, and strategic recommendations."
+                "summary_prompt": "Summarize the complete product plan developed through this multi-agent discussion. Include: key market findings, identified opportunities, proposed features, cost estimates, and strategic recommendations."
             },
         )
 
@@ -226,6 +248,7 @@ This workflow demonstrated AutoGen's CONVERSATIONAL approach to multi-agent syst
 - The GroupChatManager used LLM-based speaker selection (not hardcoded order)
 - Agents referenced each other's contributions in their responses
 - The conversation emerged organically through agent-to-agent interaction
+- A new CostAnalyst agent was added to estimate development costs after blueprinting
 
 Compare with CrewAI (crewai/crewai_demo.py):
 - CrewAI assigns discrete Tasks to Agents with expected_output
